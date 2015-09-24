@@ -1,2 +1,2 @@
 # tvduino
-Arduino sketch that detect frozen and black picture on TV screen
+Arduino sketch to detect the state of a TV by reading a photo resistor on the screen.
