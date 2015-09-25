@@ -50,6 +50,12 @@ void setup() {
   myServer->addRoute("/video", GET, &getVideo);
   myServer->addRoute("/getlivestatus", POST, &getLiveStatus);
   myServer->addRoute("/status", POST, &stbState);
+  myServer->addRoute("/zap", POST, &dozap);
+  //Configure time interruptions for 50ms
+  //this will be used to measure the time to switch
+  //channels.
+  Serial.println("Starting TVduino");
+  TimeInterruption::init(50000);
 }
 
 void loop() {

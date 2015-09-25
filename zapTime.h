@@ -117,56 +117,45 @@ void stbState(EthernetClient *client, char args[]) {
 void getLiveStatus(EthernetClient *client, char args[]) {
   unsigned int dt = JSONParser::getInt(args, "\"dt\"");
   //this will be used as a circular buffer with size = 10
-  if (dt > 6000) {
+  if (dt > 10000) {
     client->println("{\"error\":1,\"message\":\"Max time exceeded\"}");
     return;
   }
   //number of 100ms intervals
   int nPlages = dt / 100;
   vector<__livestatus> vstatus;
-  vstatus.reserve(nPlages);
 
-  for (int i = 0; i < nPlages; i++) {
-    vstatus[i] = getTVStatus(100);
+  for (int j = 0; j < nPlages; j++) {
+    vstatus.push_back(getTVStatus(100));
+    
+    //check if we should merge
+    if(j > 0){
+       int pos1 = vstatus.size()-2;
+       int pos2 = vstatus.size()-1;
+       if (vstatus[pos1].status == LIVE && vstatus[pos2].status == LIVE) {
+         vstatus[pos1].average = (vstatus[pos1].average * vstatus[pos1].delta + vstatus[pos2].average * vstatus[pos2].delta) / (vstatus[pos1].delta + vstatus[pos2].delta);
+         vstatus[pos1].delta += vstatus[pos2].delta;
+         vstatus.remove(pos2);
+      } else if ( (vstatus[pos1].status == LIVE && vstatus[pos2].status == FREEZE) ||
+                  (vstatus[pos1].status == FREEZE && vstatus[pos2].status == LIVE)) {
+         vstatus[pos1].average = (vstatus[pos1].average * vstatus[pos1].delta + vstatus[pos2].average * vstatus[pos2].delta) / (vstatus[pos1].delta + vstatus[pos2].delta);
+         vstatus[pos1].status = LIVE;
+         vstatus[pos1].delta += vstatus[pos2].delta;
+         vstatus.remove(pos2);
+      } else if (vstatus[pos1].status == FREEZE && vstatus[pos2].status == FREEZE) {
+        if (abs(vstatus[pos1].average - vstatus[pos2].average) > 2)
+          vstatus[pos1].status == LIVE;
+        vstatus[pos1].average = (vstatus[pos1].average * vstatus[pos1].delta + vstatus[pos2].average * vstatus[pos2].delta) / (vstatus[pos1].delta + vstatus[pos2].delta);
+        vstatus[pos1].delta += vstatus[pos2].delta;
+        vstatus.remove(pos2);
+      } else if (vstatus[pos1].status == BLACK && vstatus[pos2].status == BLACK) {
+        vstatus[pos1].average = (vstatus[pos1].average * vstatus[pos1].delta + vstatus[pos2].average * vstatus[pos2].delta) / (vstatus[pos1].delta + vstatus[pos2].delta);
+        vstatus[pos1].delta += vstatus[pos2].delta;
+        vstatus.remove(pos2);
+      }
+    }    
   }
 
-
-  //merge multiple intervals
-  bool merged = true;
-  int i = 0;
-  while (merged) {
-    merged = false;
-    Serial.println(vstatus.size());
-    while (i < vstatus.size() - 1) {
-      //if both are live flows merge
-      if (vstatus[i].status == LIVE && vstatus[i + 1].status == LIVE) {
-        vstatus[i].average = (vstatus[i].average * vstatus[i].delta + vstatus[i + 1].average * vstatus[i + 1].delta) / (vstatus[i].delta + vstatus[i + 1].delta);
-        vstatus[i].delta += vstatus[i + 1].delta;
-        vstatus.remove(i + 1);
-        merged = true;
-      } else if ( (vstatus[i].status == LIVE && vstatus[i + 1].status == FREEZE) ||
-                  (vstatus[i].status == FREEZE && vstatus[i + 1].status == LIVE)) {
-        vstatus[i].average = (vstatus[i].average * vstatus[i].delta + vstatus[i + 1].average * vstatus[i + 1].delta) / (vstatus[i].delta + vstatus[i + 1].delta);
-        vstatus[i].status = LIVE;
-        vstatus[i].delta += vstatus[i + 1].delta;
-        vstatus.remove(i + 1);
-        merged = true;
-      } else if (vstatus[i].status == FREEZE && vstatus[i + 1].status == FREEZE) {
-        if (abs(vstatus[i].average - vstatus[i + 1].average) > 2)
-          vstatus[i].status == LIVE;
-        vstatus[i].average = (vstatus[i].average * vstatus[i].delta + vstatus[i + 1].average * vstatus[i + 1].delta) / (vstatus[i].delta + vstatus[i + 1].delta);
-        vstatus[i].delta += vstatus[i + 1].delta;
-        vstatus.remove(i + 1);
-        merged = true;
-      } else if (vstatus[i].status == BLACK && vstatus[i + 1].status == BLACK) {
-        vstatus[i].average = (vstatus[i].average * vstatus[i].delta + vstatus[i + 1].average * vstatus[i + 1].delta) / (vstatus[i].delta + vstatus[i + 1].delta);
-        vstatus[i].delta += vstatus[i + 1].delta;
-        vstatus.remove(i + 1);
-        merged = true;
-      } else
-        i++;
-    }
-  }
   Serial.println("Sending data to client");
   //create JSON
   char str[10];
@@ -194,4 +183,96 @@ void getLiveStatus(EthernetClient *client, char args[]) {
   }
   client->print("]}");
 }
+
+
+struct dataZap{
+  bool isZapping;
+  unsigned long nFramesLow;
+  unsigned int nFramesHigh;
+};
+
+void zapTCallback(){
+  dataZap *data = (dataZap *) TimeInterruption::data;
+  int value = analogRead(A4);
+  TimeInterruption::nTimes++;
+  //will search for a high luminosity level
+  if(data->isZapping){
+      if(value < 30){
+        data->nFramesLow++;
+        data->nFramesHigh = 0;
+      }else{
+        data->nFramesHigh++;
+      }
+  }else{
+      if(value < 30){
+        data->nFramesLow++;
+      }else{
+        data->nFramesLow = 0;
+      }
+      if(data->nFramesLow > 3){
+        data->isZapping = true;
+      }
+  }
+  //finished zapping!
+  if(data->nFramesHigh > 3){
+    TimeInterruption::removeInterruption();  
+  }
+  //15 seconds is the limit
+  if(TimeInterruption::nTimes > 300){
+    TimeInterruption::nTimes = -1;
+    TimeInterruption::removeInterruption();
+  }
+}
+
+/* ZapTime measurement routine,
+ *  this will execute a zap and then measure the
+ *  time it was taken to execute it.
+ */
+void dozap(EthernetClient *client, char args[]){
+  EthernetClient zapclient;
+  byte dec_ip[4];
+  int channel;
+  //get IP
+  JSONParser::getIP(args, "\"ip_box\"", dec_ip );
+  //get channel number
+  channel = JSONParser::getInt(args, "\"channel\"");
+  zapclient.stop();
+  int code = zapclient.connect(dec_ip, 8080);
+  if (code) {
+    Serial.println("connected");
+    zapclient.println("POST /message HTTP/1.1");
+    zapclient.print("Content-Length: ");
+    zapclient.println(45 + channel/10);
+    zapclient.println("Accept: */*");
+    zapclient.println("Content-Type: application/json");
+    zapclient.println("");
+    zapclient.print("{\"action\":\"zap\",\"params\":{\"channelNumber\":");
+    zapclient.print(channel);
+    zapclient.println("}}");
+    zapclient.flush();
+    //wait for the end of zapping
+    dataZap dataLive;
+    dataLive.isZapping = false;
+    dataLive.nFramesLow = 0;
+    dataLive.nFramesHigh = 0;
+    TimeInterruption::data = (void *) &dataLive;
+    TimeInterruption::startCount(&zapTCallback);
+    Serial.println("Starting timer!");    
+    TimeInterruption::wait();
+    if(TimeInterruption::nTimes != -1){
+      client->print("{\"done\":1,\"ms\":");
+      char buf[20];
+      TimeInterruption::getMs(buf);
+      client->print(buf);
+      client->println("}");
+    }else{
+      client->println("{\"error\":1,\"msg\":\"time limit exceeded\"}");
+    }
+  } else {
+    client->println("{\"error\":1,\"msg\":\"cannot connect\"}");
+  }
+  
+}
+
+
 

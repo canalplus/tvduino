@@ -22,7 +22,7 @@
 class TimeInterruption{
 
 public:
-  static unsigned long nTimes;
+  static long nTimes;
   static unsigned long period;
   static bool finished;
   static void *data;
@@ -56,7 +56,7 @@ public:
   }
 };
 
-unsigned long TimeInterruption::nTimes;
+long TimeInterruption::nTimes;
 unsigned long TimeInterruption::period;
 bool TimeInterruption::finished;
 void * TimeInterruption::data;
