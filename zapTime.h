@@ -116,7 +116,7 @@ void stbState(EthernetClient *client, char args[]) {
  */
 void getLiveStatus(EthernetClient *client, char args[]) {
   unsigned int dt = JSONParser::getInt(args, "\"dt\"");
-  //this will be used as a circular buffer with size = 10
+
   if (dt > 10000) {
     client->println("{\"error\":1,\"message\":\"Max time exceeded\"}");
     return;
