@@ -19,9 +19,9 @@ There are three main routes implemented on the arduino REST, they can be accesse
 | /getlivestatus  | POST  | {"dt" : ms}  |  Transitions in the TV status |
 | /status  |  POST | {"dt" : ms} |  Current TV status |
 
-Output example of */getlivestatus*
+Example: */getlivestatus*
 
-Body:
+Request (POST):
 ```json
 {"dt":5000}
 ```
