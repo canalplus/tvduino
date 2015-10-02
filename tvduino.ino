@@ -51,6 +51,7 @@ void setup() {
   myServer->addRoute("/getlivestatus", POST, &getLiveStatus);
   myServer->addRoute("/status", POST, &stbState);
   myServer->addRoute("/zap", POST, &dozap);
+  myServer->addRoute("/wakeup", POST, &wakeup);
   //Configure time interruptions for 50ms
   //this will be used to measure the time to switch
   //channels.

@@ -1,5 +1,7 @@
 #define SLAVESENSOR A5
 #define MASTERSENSOR A4
+#define BLACK_THRESHOLD 30
+
 
 /*
  * Declares possible MODES for the TV
@@ -8,6 +10,13 @@ enum IMG_MODE {
   BLACK,
   LIVE,
   FREEZE
+};
+
+
+enum SENSOR_SEL{
+  MASTER,
+  SLAVE,
+  BOTH
 };
 
 struct __livestatus {
@@ -22,7 +31,7 @@ struct __livestatus {
  * Analyses the TV state for twait ms
  * and returns a __livestatus object
  */
-__livestatus getTVStatus(int twait) {
+__livestatus getTVStatus(int twait, SENSOR_SEL sensor) {
   unsigned int dt = twait;
   __livestatus rstatus;
   rstatus.delta = twait;
@@ -71,19 +80,33 @@ __livestatus getTVStatus(int twait) {
   Serial.println(deriv2);
   Serial.println(maxV2 - minV2);
   Serial.println(maxV1 - minV1);
-
-  if (deriv1 <= 1.2 && sum1 <= 30 && deriv2 <= 1.2 && sum2 <= 30) {
-    rstatus.status = BLACK;
-  } else if (deriv1 <= 2.0 && maxDeriv1 <= 2 &&
-             deriv2 <= 2.0 && maxDeriv2 <= 2 &&
-             maxV1 - minV1 < 3 && maxV2 - minV2 < 3) {
-    rstatus.status = FREEZE;
-  } else {
-    rstatus.status = LIVE;
+  if(sensor == BOTH){
+    if (deriv1 <= 1.2 && sum1 <= BLACK_THRESHOLD && deriv2 <= 1.2 && sum2 <= BLACK_THRESHOLD) {
+      rstatus.status = BLACK;
+    } else if (deriv1 <= 2.0 && maxDeriv1 <= 2 &&
+               deriv2 <= 2.0 && maxDeriv2 <= 2 &&
+               maxV1 - minV1 < 4 && maxV2 - minV2 < 4) {
+      rstatus.status = FREEZE;
+    } else {
+      rstatus.status = LIVE;
+    }
+    rstatus.average = (sum1 + sum2) / 2;
+    rstatus.derivate = (deriv1 + deriv2) / 2;
+    return rstatus;
+  //measure using only SLAVE sensor
+  }else if(sensor == SLAVE){
+    if (deriv2 <= 1.2 && sum2 <= BLACK_THRESHOLD) {
+      rstatus.status = BLACK;
+    } else if (deriv2 <= 2.0 && maxDeriv2 <= 4 &&
+               maxV2 - minV2 < 5) {
+      rstatus.status = FREEZE;
+    } else {
+      rstatus.status = LIVE;
+    }
+    rstatus.average = (sum1 + sum2) / 2;
+    rstatus.derivate = (deriv1 + deriv2) / 2;
+    return rstatus;
   }
-  rstatus.average = (sum1 + sum2) / 2;
-  rstatus.derivate = (deriv1 + deriv2) / 2;
-  return rstatus;
 }
 
 
@@ -98,7 +121,7 @@ void stbState(EthernetClient *client, char args[]) {
     client->println("{\"error\":1,\"message\":\"Max time exceeded\"}");
     return;
   }
-  __livestatus rstatus = getTVStatus(dt);
+  __livestatus rstatus = getTVStatus(dt,BOTH);
 
   client->print("{\"status\":");
   if (rstatus.status == BLACK)
@@ -126,7 +149,7 @@ void getLiveStatus(EthernetClient *client, char args[]) {
   vector<__livestatus> vstatus;
 
   for (int j = 0; j < nPlages; j++) {
-    vstatus.push_back(getTVStatus(100));
+    vstatus.push_back(getTVStatus(100, BOTH));
     
     //check if we should merge
     if(j > 0){
@@ -197,14 +220,14 @@ void zapTCallback(){
   TimeInterruption::nTimes++;
   //will search for a high luminosity level
   if(data->isZapping){
-      if(value < 30){
+      if(value < BLACK_THRESHOLD){
         data->nFramesLow++;
         data->nFramesHigh = 0;
       }else{
         data->nFramesHigh++;
       }
   }else{
-      if(value < 30){
+      if(value < BLACK_THRESHOLD){
         data->nFramesLow++;
       }else{
         data->nFramesLow = 0;
@@ -271,8 +294,42 @@ void dozap(EthernetClient *client, char args[]){
   } else {
     client->println("{\"error\":1,\"msg\":\"cannot connect\"}");
   }
-  
 }
 
-
-
+/*
+ * Measures WAKEUP time for a decoder
+ * 
+ * This method only uses the slave sensor to avoid having problems
+ * when OFF screen in the TV has a message moving in the center (Samsung)
+ */
+void wakeup(EthernetClient *client, char args[]){
+  EthernetClient wakeClient;
+  byte dec_ip[4];
+  unsigned long tStart = millis();
+  bool finished = false;
+  bool error = false;
+  int livecount = 0;
+  while(finished == false){
+    __livestatus state = getTVStatus(200, SLAVE);
+    if(state.status == LIVE){
+        livecount++;
+        if(livecount == 5){
+          finished = true;
+        }
+    }else{
+        livecount = 0;
+    }
+    if(millis() - tStart > 200000){
+      error = true;
+      finished = true;
+    }
+  }
+  tStart = millis() - tStart;
+  if(!error){
+    client->print("{\"done\":1,\"ms\":");
+    client->print(tStart);
+    client->println("}");
+  }else{
+    client->println("{\"error\":1,\"msg\":\"time limit exceeded\"}");
+  }
+}

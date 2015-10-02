@@ -35,7 +35,7 @@ private:
     client->println(F("HTTP/1.1 200 OK"));
     client->println(F("Content-Type: application/json"));
     client->println(F("Access-Control-Allow-Origin: *"));
-    client->println(F("Connection: close"));
+    client->println(F("Connection: Keep-Alive"));
     client->println(F(""));  
   }
 
