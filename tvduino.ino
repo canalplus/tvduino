@@ -7,8 +7,6 @@
  *  Filipe Caldas (fcaldas@canalplus.fr)
  */
 
-#define SENSORPIN A4
-
 #include <TimerOne.h>
 #include <SPI.h>
 #include <EthernetUdp.h>

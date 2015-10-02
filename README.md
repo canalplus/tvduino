@@ -1,6 +1,6 @@
 # TVduino
 
-TVduino is a REST API interface used to monitor the state of a set-top box using its video output.
+TVduino is a REST Server implemented on an Arduino. It is used for monitoring the state of a set-top box through its video output. The REST Server can be used as a library to create connected solutions with arduino.
 
 To put in place this solution you will need:
 
@@ -19,9 +19,9 @@ There are three main routes implemented on the arduino REST, they can be accesse
 | /getlivestatus  | POST  | {"dt" : ms}  |  Transitions in the TV status |
 | /status  |  POST | {"dt" : ms} |  Current TV status |
 
-Output example of */getlivestatus*
+Example: */getlivestatus*
 
-Body:
+Request (POST):
 ```json
 {"dt":5000}
 ```
@@ -53,4 +53,24 @@ Reply:
 ```
 Showing us that there were three transitions on the TV signal and the time it stayed in each state.
 
-TVduino can also be easily customized to add different routes to your rest server. And even be used for different needs.
+TVduino can also be easily customized to add different routes to your rest server and be used for different needs.
+To create new routes it is really simple:
+
+```c++
+void callback(EthernetClient *client, char args[]){
+  client->println("{\"hello\":\"world\"}"); 
+}
+
+void setup() {
+  Serial.begin(9600);
+  myServer = new restServer(mac, ip, gateway, subnet,80);
+  delay(1000);
+  //create routes on our rest server
+  myServer->addRoute("/test", GET, &callback);
+}
+
+void run(){
+  myServer->serve();
+}
+```
+
