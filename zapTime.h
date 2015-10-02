@@ -13,10 +13,9 @@ enum IMG_MODE {
 };
 
 
-enum SENSOR_SEL{
-  MASTER,
-  SLAVE,
-  BOTH
+enum SSENSITIVITY{
+  NORMAL,
+  EXTREME  //needs bigger changes to return LIVE
 };
 
 struct __livestatus {
@@ -31,7 +30,7 @@ struct __livestatus {
  * Analyses the TV state for twait ms
  * and returns a __livestatus object
  */
-__livestatus getTVStatus(int twait, SENSOR_SEL sensor) {
+__livestatus getTVStatus(int twait, SSENSITIVITY sensitivity) {
   unsigned int dt = twait;
   __livestatus rstatus;
   rstatus.delta = twait;
@@ -80,7 +79,7 @@ __livestatus getTVStatus(int twait, SENSOR_SEL sensor) {
   Serial.println(deriv2);
   Serial.println(maxV2 - minV2);
   Serial.println(maxV1 - minV1);
-  if(sensor == BOTH){
+  if(sensitivity == NORMAL){
     if (deriv1 <= 1.2 && sum1 <= BLACK_THRESHOLD && deriv2 <= 1.2 && sum2 <= BLACK_THRESHOLD) {
       rstatus.status = BLACK;
     } else if (deriv1 <= 2.0 && maxDeriv1 <= 2 &&
@@ -93,12 +92,13 @@ __livestatus getTVStatus(int twait, SENSOR_SEL sensor) {
     rstatus.average = (sum1 + sum2) / 2;
     rstatus.derivate = (deriv1 + deriv2) / 2;
     return rstatus;
-  //measure using only SLAVE sensor
-  }else if(sensor == SLAVE){
-    if (deriv2 <= 1.2 && sum2 <= BLACK_THRESHOLD) {
+  //measure with different criteria to return movement
+  }else if(sensitivity == EXTREME){
+    if (deriv1 <= 1.2 && sum1 <= BLACK_THRESHOLD*2 && deriv2 <= 1.2 && sum2 <= BLACK_THRESHOLD*2) {
       rstatus.status = BLACK;
-    } else if (deriv2 <= 2.0 && maxDeriv2 <= 4 &&
-               maxV2 - minV2 < 5) {
+    } else if ( (deriv1 <= 3.0 && maxDeriv1 <= 10 && maxV1 - minV1 < 60) ||
+                (deriv2 <= 2.0 && maxDeriv2 <= 2 && maxV2 - minV2 < 5)) 
+    {
       rstatus.status = FREEZE;
     } else {
       rstatus.status = LIVE;
@@ -121,7 +121,7 @@ void stbState(EthernetClient *client, char args[]) {
     client->println("{\"error\":1,\"message\":\"Max time exceeded\"}");
     return;
   }
-  __livestatus rstatus = getTVStatus(dt,BOTH);
+  __livestatus rstatus = getTVStatus(dt,NORMAL);
 
   client->print("{\"status\":");
   if (rstatus.status == BLACK)
@@ -149,7 +149,7 @@ void getLiveStatus(EthernetClient *client, char args[]) {
   vector<__livestatus> vstatus;
 
   for (int j = 0; j < nPlages; j++) {
-    vstatus.push_back(getTVStatus(100, BOTH));
+    vstatus.push_back(getTVStatus(100, NORMAL));
     
     //check if we should merge
     if(j > 0){
@@ -310,16 +310,22 @@ void wakeup(EthernetClient *client, char args[]){
   bool error = false;
   int livecount = 0;
   while(finished == false){
-    __livestatus state = getTVStatus(200, SLAVE);
+    __livestatus state = getTVStatus(500, EXTREME);
     if(state.status == LIVE){
         livecount++;
-        if(livecount == 5){
+        if(livecount == 4){
+          finished = true;
+        }
+    }else if(state.status == FREEZE && state.average > 400){
+        livecount++;
+        if(livecount == 4){
           finished = true;
         }
     }else{
         livecount = 0;
     }
-    if(millis() - tStart > 200000){
+    //time limit is 6 minutes
+    if(millis() - tStart > (unsigned long)6*60000){
       error = true;
       finished = true;
     }
