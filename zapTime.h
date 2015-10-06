@@ -2,7 +2,6 @@
 #define MASTERSENSOR A4
 #define BLACK_THRESHOLD 30
 
-
 /*
  * Declares possible MODES for the TV
  */
@@ -42,17 +41,20 @@ __livestatus getTVStatus(int twait, SSENSITIVITY sensitivity) {
   int v1 = 0, v2 = 0;
   int oldv1 = 0, oldv2 = 0;
   float deriv1 = 0, deriv2 = 0;
-  int minV1 = 0, minV2 = 0, maxV1 = 0, maxV2 = 0;
+  int minV1 = 1024, minV2 = 1024, maxV1 = 0, maxV2 = 0;
   for (unsigned int i = 0; i <= nloop; i++) {
     v1 = analogRead(MASTERSENSOR); //master
     v2 = analogRead(SLAVESENSOR);
     if (i != 0) {
       maxDeriv1 = (abs(oldv1 - v1) > maxDeriv1) ? abs(oldv1 - v1) : maxDeriv1;
       maxDeriv2 = (abs(oldv2 - v2) > maxDeriv2) ? abs(oldv2 - v2) : maxDeriv2;
+      
       maxV1 = (v1 > maxV1) ? v1 : maxV1;
       maxV2 = (v2 > maxV2) ? v2 : maxV2;
+      
       minV1 = (v1 < minV1) ? v1 : minV1;
       minV2 = (v2 < minV2) ? v2 : minV2;
+      
       deriv1 += abs(oldv1 - v1);
       deriv2 += abs(oldv2 - v2);
     } else {
@@ -72,26 +74,29 @@ __livestatus getTVStatus(int twait, SSENSITIVITY sensitivity) {
   deriv1 /= nloop;
   deriv2 /= nloop;
   IMG_MODE state;
-  Serial.println("yo");
-  Serial.println(sum1);
-  Serial.println(sum2);
-  Serial.println(deriv1);
-  Serial.println(deriv2);
-  Serial.println(maxV2 - minV2);
-  Serial.println(maxV1 - minV1);
+//  Serial.println(sensitivity);
+//  Serial.println("sum");
+//  Serial.println(sum1);
+//  Serial.println(sum2);
+//  Serial.println("deriv");
+//  Serial.println(deriv1);
+//  Serial.println(deriv2);
+//  Serial.println("maxderiv");
+//  Serial.println(maxDeriv1);
+//  Serial.println(maxDeriv2);
+//  Serial.println("maxDiff");
+//  Serial.println(maxV1 - minV1);
+//  Serial.println(maxV2 - minV2);
   if(sensitivity == NORMAL){
     if (deriv1 <= 1.2 && sum1 <= BLACK_THRESHOLD && deriv2 <= 1.2 && sum2 <= BLACK_THRESHOLD) {
       rstatus.status = BLACK;
-    } else if (deriv1 <= 2.0 && maxDeriv1 <= 2 &&
-               deriv2 <= 2.0 && maxDeriv2 <= 2 &&
-               maxV1 - minV1 < 4 && maxV2 - minV2 < 4) {
+    } else if (deriv1 <= 2.0 && maxDeriv1 <= 5 &&
+               deriv2 <= 2.0 && maxDeriv2 <= 5 &&
+               maxV1 - minV1 <= 6 && maxV2 - minV2 <= 6) {
       rstatus.status = FREEZE;
     } else {
       rstatus.status = LIVE;
-    }
-    rstatus.average = (sum1 + sum2) / 2;
-    rstatus.derivate = (deriv1 + deriv2) / 2;
-    return rstatus;
+    }  
   //measure with different criteria to return movement
   }else if(sensitivity == EXTREME){
     if (deriv1 <= 1.2 && sum1 <= BLACK_THRESHOLD*2 && deriv2 <= 1.2 && sum2 <= BLACK_THRESHOLD*2) {
@@ -103,10 +108,10 @@ __livestatus getTVStatus(int twait, SSENSITIVITY sensitivity) {
     } else {
       rstatus.status = LIVE;
     }
-    rstatus.average = (sum1 + sum2) / 2;
-    rstatus.derivate = (deriv1 + deriv2) / 2;
-    return rstatus;
   }
+  rstatus.average = (sum1 + sum2) / 2;
+  rstatus.derivate = (deriv1 + deriv2) / 2;
+  return rstatus;
 }
 
 
@@ -179,7 +184,6 @@ void getLiveStatus(EthernetClient *client, char args[]) {
     }    
   }
 
-  Serial.println("Sending data to client");
   //create JSON
   char str[10];
   client->print("{");
@@ -273,6 +277,7 @@ void dozap(EthernetClient *client, char args[]){
     zapclient.print(channel);
     zapclient.println("}}");
     zapclient.flush();
+    zapclient.stop();
     //wait for the end of zapping
     dataZap dataLive;
     dataLive.isZapping = false;
@@ -302,8 +307,7 @@ void dozap(EthernetClient *client, char args[]){
  * This method only uses the slave sensor to avoid having problems
  * when OFF screen in the TV has a message moving in the center (Samsung)
  */
-void wakeup(EthernetClient *client, char args[]){
-  EthernetClient wakeClient;
+unsigned long wakeupTime(){
   byte dec_ip[4];
   unsigned long tStart = millis();
   bool finished = false;
@@ -331,11 +335,9 @@ void wakeup(EthernetClient *client, char args[]){
     }
   }
   tStart = millis() - tStart;
-  if(!error){
-    client->print("{\"done\":1,\"ms\":");
-    client->print(tStart);
-    client->println("}");
+  if(error){
+    return 0;  
   }else{
-    client->println("{\"error\":1,\"msg\":\"time limit exceeded\"}");
+    return tStart;  
   }
 }

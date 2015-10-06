@@ -16,9 +16,11 @@
 #include "jsonParser.h"
 #include "timeinter.h"
 #include "zapTime.h"
+#include "powerSwitch.h"
 
 //Network configuration for arduino
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+//byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+byte mac[] = { 0x2A, 0x2C, 0xA9, 0x30, 0x30, 0x30 };
 byte ip[] = {10, 0, 2, 160};
 byte gateway[] = { 10, 0, 0, 1 };
 byte subnet[] = { 255, 255, 0, 0 };
@@ -49,7 +51,7 @@ void setup() {
   myServer->addRoute("/getlivestatus", POST, &getLiveStatus);
   myServer->addRoute("/status", POST, &stbState);
   myServer->addRoute("/zap", POST, &dozap);
-  myServer->addRoute("/wakeup", POST, &wakeup);
+  myServer->addRoute("/wakeup", POST, &power);
   //Configure time interruptions for 50ms
   //this will be used to measure the time to switch
   //channels.
