@@ -135,7 +135,7 @@ void stbState(EthernetClient *client, char args[]) {
     client->print("\"LIVE\"");
   else if (rstatus.status == FREEZE)
     client->print("\"FREEZE\"");
-  client->println("}");
+  client->print("}");
 }
 
 
@@ -262,7 +262,8 @@ void dozap(EthernetClient *client, char args[]){
   //get IP
   JSONParser::getIP(args, "\"ip_box\"", dec_ip );
   //get channel number
-  channel = JSONParser::getInt(args, "\"channel\"");
+  //channel = JSONParser::getInt(args, "\"channel\"");
+  channel = JSONParser::getIntFromStr(args, "\"channel\"");
   zapclient.stop();
   int code = zapclient.connect(dec_ip, 8080);
   if (code) {
@@ -315,7 +316,8 @@ unsigned long wakeupTime(){
   int livecount = 0;
   while(finished == false){
     __livestatus state = getTVStatus(500, EXTREME);
-    if(state.status == LIVE){
+    if(state.status == LIVE && 
+       millis() - tStart > (unsigned long)30000){
         livecount++;
         if(livecount == 4){
           finished = true;

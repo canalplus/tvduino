@@ -44,6 +44,26 @@ public:
     return value;
   }
 
+  /* getIntFromString()
+   *  
+   *    Reads an integer from a json buffer in string format
+   *    returns the int value
+   */
+  static int getIntFromStr(char json[], char key[]){
+    char vString[20];
+    JSONParser::getChar(json, key, vString, 20);
+    if(JSONParser::failure)
+      return -1;
+    int value = 0;
+    int multiplier = 1;
+    for(short i = strlen(vString) - 1; i >= 0; i--){
+      value = value + (vString[i] - '0') * multiplier;
+      multiplier = multiplier * 10;
+    }
+    return value;
+  }
+
+  
   /* getChar()
    * 
    *   Reads an string from a json buffer to a char array
