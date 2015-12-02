@@ -74,3 +74,4 @@ void run(){
 }
 ```
 
+Requires [Timer Library](http://playground.arduino.cc/Code/Timer1) and [Arduino IDE](https://www.arduino.cc/en/Main/Software)
