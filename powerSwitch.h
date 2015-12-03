@@ -37,7 +37,8 @@ bool setPower(int gate, bool isOn, byte switchIP[]){
 
 
 void power(EthernetClient *client, char args[]) {
-  int switchIn = JSONParser::getInt(args,"\"nplug\"");
+  //int switchIn = JSONParser::getInt(args,"\"nplug\"");
+  int switchIn = JSONParser::getIntFromStr(args, "\"nplug\"");
   byte sip[4];
   JSONParser::getIP(args, "\"ip\"", sip);
 

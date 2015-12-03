@@ -1,7 +1,7 @@
 #define SLAVESENSOR A5
 #define MASTERSENSOR A4
-#define BLACK_THRESHOLD 30
 
+int BLACK_THRESHOLD = 60;
 /*
  * Declares possible MODES for the TV
  */
@@ -263,6 +263,7 @@ void dozap(EthernetClient *client, char args[]){
   JSONParser::getIP(args, "\"ip_box\"", dec_ip );
   //get channel number
   //channel = JSONParser::getInt(args, "\"channel\"");
+  BLACK_THRESHOLD = JSONParser::getIntFromStr(args, "\"threshold\"");
   channel = JSONParser::getIntFromStr(args, "\"channel\"");
   zapclient.stop();
   int code = zapclient.connect(dec_ip, 8080);
@@ -270,7 +271,14 @@ void dozap(EthernetClient *client, char args[]){
     Serial.println("connected");
     zapclient.println("POST /message HTTP/1.1");
     zapclient.print("Content-Length: ");
-    zapclient.println(45 + channel/10);
+    if (channel < 10 ){
+      zapclient.println(45);  
+     }else if( channel < 100 ){
+          zapclient.println(45 + 1);  
+     }else{
+          zapclient.println(45 + 2);
+     }
+    /*zapclient.println(45 + channel/10);*/
     zapclient.println("Accept: */*");
     zapclient.println("Content-Type: application/json");
     zapclient.println("");
@@ -323,10 +331,11 @@ unsigned long wakeupTime(){
           finished = true;
         }
     }else if(state.status == FREEZE && state.average > 400){
-        livecount++;
-        if(livecount == 4){
-          finished = true;
-        }
+//        livecount++;
+//        if(livecount == 4){
+//          finished = true;
+//        }
+        livecount = 0;
     }else{
         livecount = 0;
     }
