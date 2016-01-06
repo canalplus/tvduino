@@ -18,6 +18,9 @@ There are three main routes implemented on the arduino REST, they can be accesse
 | /video  | GET | none  |  Readings of both sensors  |
 | /getlivestatus  | POST  | {"dt" : ms}  |  Transitions in the TV status |
 | /status  |  POST | {"dt" : ms} |  Current TV status |
+| /zap  |  POST | {"ip_box" : "STB_IP" , "channel":"NChannel", "threshold":"LOW_THRESHOLD"} |  Measures zapping time for a STB (dev) |
+| /wakeup  |  POST | {"nplug" : "N_PLUG", "ip":"Ip_ePowerSwitch"} |  Measures electrical wakeup time for a STB|
+
 
 Example: */getlivestatus*
 
